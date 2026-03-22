@@ -1,0 +1,256 @@
+{% extends 'base.html' %}
+{% block title %}Medicamentos{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h2><i class="bi bi-box-seam me-2"></i>Medicamentos</h2>
+  <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#modalMed" onclick="abrirCrear()">
+    <i class="bi bi-plus-lg me-1"></i>Nuevo
+  </button>
+</div>
+
+<div class="mb-3">
+  <input type="text" class="form-control" id="buscar" placeholder="Buscar por nombre..." oninput="cargar()">
+</div>
+
+<div class="table-responsive">
+  <table class="table table-hover bg-white rounded shadow-sm align-middle">
+    <thead class="table-success">
+      <!-- CAMBIO: agregamos columna de vencimiento para mostrar el próximo vencimiento del medicamento -->
+      <tr><th>#</th><th>Nombre</th><th>Precio</th><th>Stock</th><th>Próx. venc.</th><th>Receta</th><th>Estado</th><th>Acciones</th></tr>
+    </thead>
+    <tbody id="tbody"><tr><td colspan="8" class="text-center text-muted py-3">Cargando...</td></tr></tbody>
+  </table>
+</div>
+
+<!-- Modal crear/editar -->
+<div class="modal fade" id="modalMed" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header bg-success text-white">
+        <h5 class="modal-title" id="modal-title">Nuevo Medicamento</h5>
+        <button class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="med-id">
+        <input type="hidden" id="lote-id">
+        <div class="mb-3">
+          <label class="form-label">Nombre *</label>
+          <input type="text" class="form-control" id="med-nombre">
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Descripción</label>
+          <textarea class="form-control" id="med-desc" rows="2"></textarea>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Precio unitario (COP) *</label>
+          <input type="number" class="form-control" id="med-precio" min="1" step="100">
+        </div>
+        <div class="form-check mb-2">
+          <input class="form-check-input" type="checkbox" id="med-receta">
+          <label class="form-check-label">Requiere receta médica</label>
+        </div>
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" id="med-activo" checked>
+          <label class="form-check-label">Activo</label>
+        </div>
+
+        <hr>
+        <h6 class="mb-3">
+          <i class="bi bi-box2-heart me-2"></i>Stock y vencimiento (Lote)
+        </h6>
+        <!-- CAMBIO: permitimos ajustar stock (cantidad_disponible) y fecha_vencimiento desde esta pantalla -->
+        <div class="row g-2">
+          <div class="col-md-6">
+            <label class="form-label">Nº Lote *</label>
+            <input type="text" class="form-control" id="lote-numero" placeholder="Ej: L-001">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Fecha de vencimiento *</label>
+            <input type="date" class="form-control" id="lote-fecha">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Cantidad inicial</label>
+            <input type="number" class="form-control" id="lote-inicial" min="1" step="1" placeholder="Ej: 100">
+            <div class="form-text">Solo requerido al crear un lote nuevo.</div>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Stock actual</label>
+            <input type="number" class="form-control" id="lote-stock" min="0" step="1" placeholder="Ej: 80">
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button class="btn btn-success" onclick="guardar()">Guardar</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let editandoId = null;
+
+async function cargar() {
+  // CAMBIO: apiFetch centraliza headers (token) + manejo de 401 (redirige a /login/)
+  const q   = document.getElementById('buscar').value;
+  const url = '/api/medicamentos/' + (q ? `?nombre=${encodeURIComponent(q)}` : '');
+  const res = await apiFetch(url);
+  const json = await res.json();
+  // DRF pagina: { results: [...] } o directamente array
+  const data = json.results ?? json;
+  const tbody = document.getElementById('tbody');
+
+  if (!data.length) {
+    // CAMBIO: el colspan ahora es 8 por la nueva columna "Próx. venc."
+    tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted">Sin resultados.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = data.map(m => `
+    <tr>
+      <td>${m.id}</td>
+      <td><strong>${m.nombre}</strong></td>
+      <td>$${Number(m.precio_unitario).toLocaleString('es-CO')}</td>
+      <td>
+        <span class="badge ${m.stock_bajo ? 'bg-danger' : 'bg-success'}">${m.stock_total} uds</span>
+        ${m.lotes_por_vencer_count > 0
+          ? `<span class="badge bg-warning text-dark ms-1"><i class="bi bi-clock"></i> ${m.lotes_por_vencer_count} lote(s)</span>`
+          : ''}
+      </td>
+      <!-- CAMBIO: mostrar próximo vencimiento (viene de MedicamentoSerializer.proximo_vencimiento) -->
+      <td class="small">${m.proximo_vencimiento ? m.proximo_vencimiento : '<span class="text-muted">—</span>'}</td>
+      <td>${m.requiere_receta ? '<span class="badge bg-info text-dark">Sí</span>' : 'No'}</td>
+      <td>${m.activo
+            ? '<span class="badge bg-success">Activo</span>'
+            : '<span class="badge bg-secondary">Inactivo</span>'}</td>
+      <td>
+        <button class="btn btn-sm btn-outline-primary" onclick="abrirEditar(${m.id})"><i class="bi bi-pencil"></i></button>
+        <button class="btn btn-sm btn-outline-danger ms-1" onclick="eliminar(${m.id})"><i class="bi bi-trash"></i></button>
+      </td>
+    </tr>`).join('');
+}
+
+function limpiarModal() {
+  ['med-nombre','med-desc','med-precio'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('med-receta').checked = false;
+  document.getElementById('med-activo').checked  = true;
+  document.getElementById('med-id').value = '';
+  // CAMBIO: limpiar campos del lote (stock/vencimiento)
+  document.getElementById('lote-id').value = '';
+  document.getElementById('lote-numero').value = '';
+  document.getElementById('lote-fecha').value = '';
+  document.getElementById('lote-inicial').value = '';
+  document.getElementById('lote-stock').value = '';
+}
+
+function abrirCrear() {
+  editandoId = null;
+  document.getElementById('modal-title').textContent = 'Nuevo Medicamento';
+  limpiarModal();
+  // CAMBIO: por defecto, al crear se asume que se creará un lote inicial si se llenan los campos.
+}
+
+async function abrirEditar(id) {
+  editandoId = id;
+  const res = await apiFetch(`/api/medicamentos/${id}/`);
+  const m   = await res.json();
+  document.getElementById('modal-title').textContent  = 'Editar Medicamento';
+  document.getElementById('med-nombre').value         = m.nombre;
+  document.getElementById('med-desc').value           = m.descripcion;
+  document.getElementById('med-precio').value         = m.precio_unitario;
+  document.getElementById('med-receta').checked       = m.requiere_receta;
+  document.getElementById('med-activo').checked       = m.activo;
+
+  // CAMBIO: al editar un medicamento, cargamos un lote (si existe) para permitir ajustar stock/vencimiento.
+  // Tomamos el primer lote no vencido del medicamento (ordenado por vencimiento).
+  try {
+    const rL = await apiFetch(`/api/lotes/?medicamento=${id}&vencidos=false`);
+    const jL = await rL.json();
+    const lotes = jL.results ?? jL;
+    const lote = Array.isArray(lotes) && lotes.length ? lotes[0] : null;
+
+    document.getElementById('lote-id').value     = lote?.id ?? '';
+    document.getElementById('lote-numero').value = lote?.numero_lote ?? '';
+    document.getElementById('lote-fecha').value  = lote?.fecha_vencimiento ?? '';
+    document.getElementById('lote-inicial').value = lote?.cantidad_inicial ?? '';
+    document.getElementById('lote-stock').value  = (lote?.cantidad_disponible ?? '').toString();
+  } catch (e) {
+    console.error(e);
+  }
+
+  new bootstrap.Modal(document.getElementById('modalMed')).show();
+}
+
+async function guardar() {
+  const body = {
+    nombre:          document.getElementById('med-nombre').value.trim(),
+    descripcion:     document.getElementById('med-desc').value.trim(),
+    precio_unitario: document.getElementById('med-precio').value,
+    requiere_receta: document.getElementById('med-receta').checked,
+    activo:          document.getElementById('med-activo').checked,
+  };
+  const url    = editandoId ? `/api/medicamentos/${editandoId}/` : '/api/medicamentos/';
+  const method = editandoId ? 'PUT' : 'POST';
+  const res    = await apiFetch(url, { method, body: JSON.stringify(body) });
+  const data   = await res.json();
+
+  if (res.ok) {
+    // CAMBIO: luego de guardar el medicamento, si hay datos de lote, creamos/actualizamos el lote.
+    const medId = editandoId ?? data.id;
+    const loteId = document.getElementById('lote-id').value;
+    const numero = document.getElementById('lote-numero').value.trim();
+    const fecha  = document.getElementById('lote-fecha').value;
+    const inicial = document.getElementById('lote-inicial').value;
+    const stock   = document.getElementById('lote-stock').value;
+
+    // Crear: requiere mínimo número/fecha/inicial.
+    // Editar: con loteId, permite actualizar fecha/stock (y número si se desea).
+    try {
+      if (loteId) {
+        const patch = {};
+        if (numero) patch.numero_lote = numero;
+        if (fecha)  patch.fecha_vencimiento = fecha;
+        if (stock !== '') patch.cantidad_disponible = parseInt(stock, 10);
+        if (Object.keys(patch).length) {
+          await apiFetch(`/api/lotes/${loteId}/`, { method: 'PATCH', body: JSON.stringify(patch) });
+        }
+      } else if (numero && fecha && inicial) {
+        const cantidadInicial = parseInt(inicial, 10);
+        const cantidadStock   = stock !== '' ? parseInt(stock, 10) : cantidadInicial;
+        await apiFetch('/api/lotes/', {
+          method: 'POST',
+          body: JSON.stringify({
+            medicamento: medId,
+            numero_lote: numero,
+            fecha_vencimiento: fecha,
+            cantidad_inicial: cantidadInicial,
+            cantidad_disponible: cantidadStock,
+          }),
+        });
+      }
+    } catch (e) {
+      console.error(e);
+      showAlert('Medicamento guardado, pero hubo un error guardando el lote (stock/vencimiento).', 'warning');
+    }
+
+    bootstrap.Modal.getInstance(document.getElementById('modalMed')).hide();
+    showAlert(editandoId ? 'Medicamento actualizado.' : 'Medicamento creado.');
+    cargar();
+  } else {
+    const msg = Object.entries(data).map(([k,v]) => `${k}: ${v}`).join(' | ');
+    showAlert(msg, 'danger');
+  }
+}
+
+async function eliminar(id) {
+  if (!confirm('¿Eliminar este medicamento?')) return;
+  const res = await apiFetch(`/api/medicamentos/${id}/`, { method: 'DELETE' });
+  if (res.ok) { showAlert('Medicamento eliminado.'); cargar(); }
+  else showAlert('No se pudo eliminar.', 'danger');
+}
+
+document.addEventListener('DOMContentLoaded', cargar);
+</script>
+{% endblock %}

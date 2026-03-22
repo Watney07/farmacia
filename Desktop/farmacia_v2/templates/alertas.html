@@ -1,0 +1,82 @@
+{% extends 'base.html' %}
+{% block title %}Alertas{% endblock %}
+
+{% block content %}
+<h2><i class="bi bi-exclamation-triangle text-warning me-2"></i>Alertas del Sistema</h2>
+<p class="text-muted">Medicamentos con stock bajo y lotes que vencen en menos de 30 días.</p>
+
+<div class="row g-3 mb-4">
+  <div class="col-md-6">
+    <div class="card border-danger text-center">
+      <div class="card-body py-3">
+        <i class="bi bi-box-seam fs-2 text-danger"></i>
+        <h5 class="mt-1">Stock bajo (&lt;10 uds)</h5>
+        <p class="display-5 fw-bold text-danger mb-0" id="cnt-stock">—</p>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-6">
+    <div class="card border-warning text-center">
+      <div class="card-body py-3">
+        <i class="bi bi-clock fs-2 text-warning"></i>
+        <h5 class="mt-1">Lotes por vencer (&lt;30 días)</h5>
+        <p class="display-5 fw-bold text-warning mb-0" id="cnt-lotes">—</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h5 class="text-danger"><i class="bi bi-exclamation-circle me-2"></i>Medicamentos con Stock Bajo</h5>
+<div class="table-responsive mb-4">
+  <table class="table bg-white rounded shadow-sm">
+    <thead class="table-danger"><tr><th>Medicamento</th><th>Stock</th><th>Precio</th><th>Activo</th></tr></thead>
+    <tbody id="tb-stock"></tbody>
+  </table>
+</div>
+
+<h5 class="text-warning"><i class="bi bi-clock-history me-2"></i>Lotes Próximos a Vencer</h5>
+<div class="table-responsive">
+  <table class="table bg-white rounded shadow-sm">
+    <thead class="table-warning"><tr><th>Nº Lote</th><th>Medicamento</th><th>Vencimiento</th><th>Días restantes</th><th>Unidades</th></tr></thead>
+    <tbody id="tb-lotes"></tbody>
+  </table>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function cargarAlertas() {
+  // CAMBIO: apiFetch centraliza headers (token) + manejo de 401 (redirige a /login/)
+  const res  = await apiFetch('/api/medicamentos/alertas/');
+  const data = await res.json();
+
+  document.getElementById('cnt-stock').textContent = data.resumen.medicamentos_stock_bajo;
+  document.getElementById('cnt-lotes').textContent = data.resumen.lotes_por_vencer;
+
+  const tbStock = document.getElementById('tb-stock');
+  tbStock.innerHTML = data.stock_bajo.length
+    ? data.stock_bajo.map(m => `
+        <tr>
+          <td><strong>${m.nombre}</strong></td>
+          <td><span class="badge bg-danger">${m.stock_total} uds</span></td>
+          <td>$${Number(m.precio_unitario).toLocaleString('es-CO')}</td>
+          <td>${m.activo ? '<span class="badge bg-success">Sí</span>' : '<span class="badge bg-secondary">No</span>'}</td>
+        </tr>`).join('')
+    : '<tr><td colspan="4" class="text-center text-success py-3">✓ Sin alertas de stock.</td></tr>';
+
+  const tbLotes = document.getElementById('tb-lotes');
+  tbLotes.innerHTML = data.lotes_por_vencer.length
+    ? data.lotes_por_vencer.map(l => `
+        <tr class="${l.dias_para_vencer <= 7 ? 'table-danger' : 'table-warning'}">
+          <td><code>${l.numero_lote}</code></td>
+          <td>${l.medicamento_nombre}</td>
+          <td>${l.fecha_vencimiento}</td>
+          <td><span class="badge ${l.dias_para_vencer <= 7 ? 'bg-danger' : 'bg-warning text-dark'}">${l.dias_para_vencer} días</span></td>
+          <td>${l.cantidad_disponible} uds</td>
+        </tr>`).join('')
+    : '<tr><td colspan="5" class="text-center text-success py-3">✓ Sin lotes próximos a vencer.</td></tr>';
+}
+
+document.addEventListener('DOMContentLoaded', cargarAlertas);
+</script>
+{% endblock %}

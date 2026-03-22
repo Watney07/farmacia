@@ -1,0 +1,153 @@
+{% extends 'base.html' %}
+{% block title %}Ventas{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+
+  <!-- Formulario -->
+  <div class="col-md-4">
+    <div class="card shadow-sm">
+      <div class="card-header bg-primary text-white fw-bold">
+        <i class="bi bi-cart-plus me-2"></i>Nueva Venta
+      </div>
+      <div class="card-body">
+        <div class="mb-3">
+          <label class="form-label">Medicamento *</label>
+          <select class="form-select" id="venta-med" onchange="mostrarStock()">
+            <option value="">Selecciona...</option>
+          </select>
+        </div>
+        <div id="stock-info" class="mb-3" style="display:none">
+          <div class="alert alert-info py-2 mb-0" id="stock-detalle"></div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Cantidad *</label>
+          <input type="number" class="form-control" id="venta-cant" min="1" value="1">
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Nombre del cliente</label>
+          <input type="text" class="form-control" id="venta-cliente" placeholder="Opcional">
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Observaciones</label>
+          <textarea class="form-control" id="venta-obs" rows="2"></textarea>
+        </div>
+        <button class="btn btn-primary w-100" onclick="registrarVenta()">
+          <i class="bi bi-check-lg me-1"></i>Registrar
+        </button>
+        <p class="text-muted small mt-2 mb-0">
+          <i class="bi bi-info-circle me-1"></i>El sistema usa el lote más antiguo disponible (FIFO).
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Historial -->
+  <div class="col-md-8">
+    <h4><i class="bi bi-clock-history me-2"></i>Historial</h4>
+    <div class="table-responsive">
+      <table class="table table-hover bg-white rounded shadow-sm align-middle">
+        <thead class="table-primary">
+          <tr><th>#</th><th>Medicamento</th><th>Lote</th><th>Cant.</th><th>Total</th><th>Cliente</th><th>Fecha</th><th></th></tr>
+        </thead>
+        <tbody id="tbody-ventas">
+          <tr><td colspan="8" class="text-center text-muted py-3">Cargando...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let medicamentos = [];
+
+async function cargarMeds() {
+  // CAMBIO: apiFetch centraliza headers (token) + manejo de 401 (redirige a /login/)
+  const res  = await apiFetch('/api/medicamentos/?activo=true');
+  const json = await res.json();
+  medicamentos  = json.results ?? json;
+  const sel  = document.getElementById('venta-med');
+  sel.innerHTML = '<option value="">Selecciona...</option>';
+  medicamentos.forEach(m => {
+    const o = document.createElement('option');
+    o.value = m.id;
+    o.textContent = `${m.nombre} — Stock: ${m.stock_total} uds`;
+    sel.appendChild(o);
+  });
+}
+
+function mostrarStock() {
+  const id  = document.getElementById('venta-med').value;
+  const med = medicamentos.find(m => m.id == id);
+  const box = document.getElementById('stock-info');
+  const det = document.getElementById('stock-detalle');
+  if (!med) { box.style.display = 'none'; return; }
+  box.style.display = 'block';
+  det.className = `alert ${med.stock_bajo ? 'alert-warning' : 'alert-info'} py-2 mb-0`;
+  det.innerHTML = `<strong>${med.nombre}</strong><br>
+    Stock: <strong>${med.stock_total} uds</strong> &nbsp;|&nbsp;
+    Precio: <strong>$${Number(med.precio_unitario).toLocaleString('es-CO')}</strong>
+    ${med.stock_bajo ? '<br><span class="text-danger fw-bold">⚠ Stock bajo</span>' : ''}`;
+}
+
+async function cargarVentas() {
+  const res  = await apiFetch('/api/ventas/');
+  const json = await res.json();
+  const data = json.results ?? json;
+  const tb   = document.getElementById('tbody-ventas');
+  if (!data.length) { tb.innerHTML = '<tr><td colspan="8" class="text-center text-muted">Sin ventas.</td></tr>'; return; }
+  tb.innerHTML = data.map(v => `
+    <tr class="${v.estado === 'cancelada' ? 'table-secondary text-decoration-line-through' : ''}">
+      <td>${v.id}</td>
+      <td>${v.medicamento_nombre}</td>
+      <td><code>${v.lote_numero ?? '—'}</code></td>
+      <td>${v.cantidad}</td>
+      <td><strong>$${Number(v.total).toLocaleString('es-CO')}</strong></td>
+      <td>${v.cliente_nombre || '<span class="text-muted">—</span>'}</td>
+      <td class="small">${new Date(v.fecha_venta).toLocaleString('es-CO')}</td>
+      <td>${v.estado === 'completada'
+            ? `<button class="btn btn-sm btn-outline-danger" onclick="cancelar(${v.id})" title="Cancelar"><i class="bi bi-x-circle"></i></button>`
+            : '<span class="badge bg-secondary">Cancelada</span>'}</td>
+    </tr>`).join('');
+}
+
+async function registrarVenta() {
+  const medicamento    = document.getElementById('venta-med').value;
+  const cantidad       = parseInt(document.getElementById('venta-cant').value);
+  const cliente_nombre = document.getElementById('venta-cliente').value.trim();
+  const observaciones  = document.getElementById('venta-obs').value.trim();
+  if (!medicamento || !cantidad) return showAlert('Selecciona medicamento y cantidad.', 'warning');
+
+  const res  = await apiFetch('/api/ventas/', {
+    method: 'POST',
+    body: JSON.stringify({ medicamento, cantidad, cliente_nombre, observaciones })
+  });
+  const data = await res.json();
+  if (res.ok) {
+    showAlert(`Venta registrada. Lote: ${data.lote_numero ?? '—'} | Total: $${Number(data.total).toLocaleString('es-CO')}`);
+    document.getElementById('venta-med').value    = '';
+    document.getElementById('venta-cant').value   = 1;
+    document.getElementById('venta-cliente').value = '';
+    document.getElementById('venta-obs').value    = '';
+    document.getElementById('stock-info').style.display = 'none';
+    cargarMeds(); cargarVentas();
+  } else {
+    const msg = Array.isArray(data) ? data.join(' ') : Object.values(data).flat().join(' ');
+    showAlert(msg || 'Error al registrar.', 'danger');
+  }
+}
+
+async function cancelar(id) {
+  if (!confirm('¿Cancelar esta venta y restaurar el stock?')) return;
+  const res  = await apiFetch(`/api/ventas/${id}/`, { method: 'DELETE' });
+  const data = await res.json();
+  if (res.ok) { showAlert(data.mensaje); cargarMeds(); cargarVentas(); }
+  else showAlert(data.error || 'Error.', 'danger');
+}
+
+document.addEventListener('DOMContentLoaded', () => { cargarMeds(); cargarVentas(); });
+</script>
+{% endblock %}
