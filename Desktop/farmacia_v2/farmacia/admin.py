@@ -7,7 +7,7 @@ class LoteInline(admin.TabularInline):
     model  = Lote
     extra  = 1
     fields = ['numero_lote', 'fecha_vencimiento', 'cantidad_inicial', 'cantidad_disponible', 'proveedor']
-    # CAMBIO: `cantidad_disponible` ya no es readonly para poder ajustar stock actual desde el admin.
+    # CAMBIO: modificar stock y vencimiento para todos los usuarios
 
 
 @admin.register(Medicamento)

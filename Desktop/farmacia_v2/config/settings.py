@@ -112,8 +112,7 @@ REST_FRAMEWORK = {
         'rest_framework.authentication.SessionAuthentication',
     ],
 
-    # CAMBIO: exigimos autenticaciÃ³n para cualquier request (GET/POST/PUT/PATCH/DELETE).
-    # Esto hace que, sin "sesiÃ³n" (token), el frontend termine mostrando solo el login.
+    # CAMBIO: exige autenticacion para cualquier request (GET/POST/PUT/PATCH/DELETE)
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',
     ],

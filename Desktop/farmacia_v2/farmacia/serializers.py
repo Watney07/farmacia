@@ -102,8 +102,8 @@ class LoteSerializer(serializers.ModelSerializer):
             'fecha_ingreso', 'proveedor',
             'esta_vencido', 'dias_para_vencer', 'alerta_vencimiento'
         ]
-        # CAMBIO: permitimos editar `cantidad_disponible` (stock actual) desde la API.
-        # Solo dejamos como solo-lectura el id y la fecha de ingreso.
+        # CAMBIO: permitir editar `cantidad_disponible` (stock actual) desde la API.
+        # id y la fecha de ingreso queda como solo lectura
         read_only_fields = ['id', 'fecha_ingreso']
 
     def get_esta_vencido(self, obj):

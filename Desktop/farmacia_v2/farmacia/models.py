@@ -81,7 +81,7 @@ class Lote(models.Model):
 
         
     def save(self, *args, **kwargs):
-        # CAMBIO: asegurar que SIEMPRE se persista el modelo.
+        # CAMBIO: asegurar que SIEMPRE se persista el modelo. 
         # Antes solo guardaba cuando cantidad_disponible era None, lo que impedía crear/actualizar lotes.
         if self.cantidad_disponible is None:
             self.cantidad_disponible = self.cantidad_inicial
