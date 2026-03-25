@@ -79,6 +79,29 @@ class MedicamentoSerializer(serializers.ModelSerializer):
             )
         return value.strip()
 
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+
+        # Al crear, la descripción es obligatoria.
+        if self.instance is None:
+            descripcion = attrs.get('descripcion', '')
+            if not isinstance(descripcion, str) or not descripcion.strip():
+                raise serializers.ValidationError(
+                    {"descripcion": "La descripción es obligatoria."}
+                )
+            attrs['descripcion'] = descripcion.strip()
+        else:
+            # En edición, si llega el campo, lo normalizamos y no permitimos vacío.
+            if 'descripcion' in attrs:
+                descripcion = attrs.get('descripcion', '')
+                if not isinstance(descripcion, str) or not descripcion.strip():
+                    raise serializers.ValidationError(
+                        {"descripcion": "La descripción no puede estar vacía."}
+                    )
+                attrs['descripcion'] = descripcion.strip()
+
+        return attrs
+
 
 # ══════════════════════════════════════════════════════════════════
 # LOTE

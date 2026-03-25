@@ -36,15 +36,15 @@
         <input type="hidden" id="lote-id">
         <div class="mb-3">
           <label class="form-label">Nombre *</label>
-          <input type="text" class="form-control" id="med-nombre">
+          <input type="text" class="form-control" id="med-nombre" required>
         </div>
         <div class="mb-3">
-          <label class="form-label">Descripción</label>
-          <textarea class="form-control" id="med-desc" rows="2"></textarea>
+          <label class="form-label">Descripción *</label>
+          <textarea class="form-control" id="med-desc" rows="2" required></textarea>
         </div>
         <div class="mb-3">
           <label class="form-label">Precio unitario (COP) *</label>
-          <input type="number" class="form-control" id="med-precio" min="1" step="100">
+          <input type="number" class="form-control" id="med-precio" min="1" step="100" required>
         </div>
         <div class="form-check mb-2">
           <input class="form-check-input" type="checkbox" id="med-receta">
@@ -63,16 +63,16 @@
         <div class="row g-2">
           <div class="col-md-6">
             <label class="form-label">Nº Lote *</label>
-            <input type="text" class="form-control" id="lote-numero" placeholder="Ej: L-001">
+            <input type="text" class="form-control" id="lote-numero" placeholder="Ej: L-001" required>
           </div>
           <div class="col-md-6">
             <label class="form-label">Fecha de vencimiento *</label>
-            <input type="date" class="form-control" id="lote-fecha">
+            <input type="date" class="form-control" id="lote-fecha" required>
           </div>
           <div class="col-md-6">
-            <label class="form-label">Cantidad inicial</label>
-            <input type="number" class="form-control" id="lote-inicial" min="1" step="1" placeholder="Ej: 100">
-            <div class="form-text">Solo requerido al crear un lote nuevo.</div>
+            <label class="form-label">Cantidad inicial *</label>
+            <input type="number" class="form-control" id="lote-inicial" min="1" step="1" placeholder="Ej: 100" required>
+            <div class="form-text">Obligatorio al crear el medicamento.</div>
           </div>
           <div class="col-md-6">
             <label class="form-label">Stock actual</label>
@@ -81,8 +81,8 @@
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-        <button class="btn btn-success" onclick="guardar()">Guardar</button>
+        <button class="btn btn-secondary" id="btn-cancelar" data-bs-dismiss="modal">Cancelar</button>
+        <button class="btn btn-success" id="btn-guardar" onclick="guardar()">Guardar</button>
       </div>
     </div>
   </div>
@@ -91,7 +91,38 @@
 
 {% block scripts %}
 <script>
-let editandoId = null;
+let modalMode = 'create'; // 'create' | 'review'
+
+function setModalMode(mode) {
+  modalMode = mode;
+  const review = mode === 'review';
+
+  const setReadOnly = (id, ro) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (el.tagName === 'TEXTAREA') { el.readOnly = ro; return; }
+    if (el.tagName === 'INPUT') {
+      if (el.type === 'checkbox' || el.type === 'date') { el.disabled = ro; return; }
+      el.readOnly = ro;
+    }
+  };
+
+  // Medicamento
+  setReadOnly('med-nombre', review);
+  setReadOnly('med-desc', review);
+  setReadOnly('med-precio', review);
+  setReadOnly('med-receta', review);
+  setReadOnly('med-activo', review);
+
+  // Lote
+  setReadOnly('lote-numero', review);
+  setReadOnly('lote-fecha', review);
+  setReadOnly('lote-inicial', review);
+  setReadOnly('lote-stock', review);
+
+  document.getElementById('btn-guardar').classList.toggle('d-none', review);
+  document.getElementById('btn-cancelar').textContent = review ? 'Cerrar' : 'Cancelar';
+}
 
 async function cargar() {
   // CAMBIO: apiFetch centraliza headers (token) + manejo de 401 (redirige a /login/)
@@ -108,8 +139,17 @@ async function cargar() {
     tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted">Sin resultados.</td></tr>';
     return;
   }
+
+  // Activos primero; inactivos al final.
+  data.sort((a, b) => {
+    if (a.activo === b.activo) {
+      return (a.nombre ?? '').localeCompare((b.nombre ?? ''), 'es', { sensitivity: 'base' });
+    }
+    return a.activo ? -1 : 1;
+  });
+
   tbody.innerHTML = data.map(m => `
-    <tr>
+    <tr class="${m.activo ? '' : 'table-light text-muted'}">
       <td>${m.id}</td>
       <td><strong>${m.nombre}</strong></td>
       <td>$${Number(m.precio_unitario).toLocaleString('es-CO')}</td>
@@ -126,7 +166,10 @@ async function cargar() {
             ? '<span class="badge bg-success">Activo</span>'
             : '<span class="badge bg-secondary">Inactivo</span>'}</td>
       <td>
-        <button class="btn btn-sm btn-outline-primary" onclick="abrirEditar(${m.id})"><i class="bi bi-pencil"></i></button>
+        <button class="btn btn-sm btn-outline-primary" onclick="abrirRevision(${m.id})" title="Revisar"><i class="bi bi-eye"></i></button>
+        ${m.activo
+          ? `<button class="btn btn-sm btn-outline-warning ms-1" onclick="inactivar(${m.id})" title="Inactivar"><i class="bi bi-slash-circle"></i></button>`
+          : `<button class="btn btn-sm btn-outline-secondary ms-1" disabled title="Inactivo"><i class="bi bi-slash-circle"></i></button>`}
         <button class="btn btn-sm btn-outline-danger ms-1" onclick="eliminar(${m.id})"><i class="bi bi-trash"></i></button>
       </td>
     </tr>`).join('');
@@ -146,24 +189,24 @@ function limpiarModal() {
 }
 
 function abrirCrear() {
-  editandoId = null;
+  setModalMode('create');
   document.getElementById('modal-title').textContent = 'Nuevo Medicamento';
   limpiarModal();
   // CAMBIO: por defecto, al crear se asume que se creará un lote inicial si se llenan los campos.
 }
 
-async function abrirEditar(id) {
-  editandoId = id;
+async function abrirRevision(id) {
+  setModalMode('review');
   const res = await apiFetch(`/api/medicamentos/${id}/`);
   const m   = await res.json();
-  document.getElementById('modal-title').textContent  = 'Editar Medicamento';
+  document.getElementById('modal-title').textContent  = 'Revisión de Medicamento';
   document.getElementById('med-nombre').value         = m.nombre;
   document.getElementById('med-desc').value           = m.descripcion;
   document.getElementById('med-precio').value         = m.precio_unitario;
   document.getElementById('med-receta').checked       = m.requiere_receta;
   document.getElementById('med-activo').checked       = m.activo;
 
-  // CAMBIO: al editar un medicamento, cargamos un lote (si existe) para permitir ajustar stock/vencimiento.
+  // CAMBIO: en revisión, cargamos un lote (si existe) para mostrar stock/vencimiento.
   // Tomamos el primer lote no vencido del medicamento (ordenado por vencimiento).
   try {
     const rL = await apiFetch(`/api/lotes/?medicamento=${id}&vencidos=false`);
@@ -184,6 +227,8 @@ async function abrirEditar(id) {
 }
 
 async function guardar() {
+  if (modalMode !== 'create') return;
+
   const body = {
     nombre:          document.getElementById('med-nombre').value.trim(),
     descripcion:     document.getElementById('med-desc').value.trim(),
@@ -191,52 +236,52 @@ async function guardar() {
     requiere_receta: document.getElementById('med-receta').checked,
     activo:          document.getElementById('med-activo').checked,
   };
-  const url    = editandoId ? `/api/medicamentos/${editandoId}/` : '/api/medicamentos/';
-  const method = editandoId ? 'PUT' : 'POST';
-  const res    = await apiFetch(url, { method, body: JSON.stringify(body) });
+
+  const numero  = document.getElementById('lote-numero').value.trim();
+  const fecha   = document.getElementById('lote-fecha').value;
+  const inicial = document.getElementById('lote-inicial').value;
+  const stock   = document.getElementById('lote-stock').value;
+
+  if (!body.nombre) return showAlert('El nombre es obligatorio.', 'warning');
+  if (!body.descripcion) return showAlert('La descripción es obligatoria.', 'warning');
+  if (!body.precio_unitario) return showAlert('El precio unitario es obligatorio.', 'warning');
+  if (!numero) return showAlert('El Nº de lote es obligatorio.', 'warning');
+  if (!fecha) return showAlert('La fecha de vencimiento es obligatoria.', 'warning');
+  if (inicial === '') return showAlert('La cantidad inicial es obligatoria.', 'warning');
+
+  const cantidadInicial = parseInt(inicial, 10);
+  if (!Number.isFinite(cantidadInicial) || cantidadInicial < 1) {
+    return showAlert('La cantidad inicial debe ser un número mayor o igual a 1.', 'warning');
+  }
+  const cantidadStock = stock !== '' ? parseInt(stock, 10) : cantidadInicial;
+  if (!Number.isFinite(cantidadStock) || cantidadStock < 0) {
+    return showAlert('El stock actual debe ser un número mayor o igual a 0.', 'warning');
+  }
+
+  const res    = await apiFetch('/api/medicamentos/', { method: 'POST', body: JSON.stringify(body) });
   const data   = await res.json();
 
   if (res.ok) {
-    // CAMBIO: luego de guardar el medicamento, si hay datos de lote, creamos/actualizamos el lote.
-    const medId = editandoId ?? data.id;
-    const loteId = document.getElementById('lote-id').value;
-    const numero = document.getElementById('lote-numero').value.trim();
-    const fecha  = document.getElementById('lote-fecha').value;
-    const inicial = document.getElementById('lote-inicial').value;
-    const stock   = document.getElementById('lote-stock').value;
-
-    // Crear: requiere mínimo número/fecha/inicial.
-    // Editar: con loteId, permite actualizar fecha/stock (y número si se desea).
+    // Luego de crear el medicamento, creamos el lote inicial (obligatorio).
+    const medId = data.id;
     try {
-      if (loteId) {
-        const patch = {};
-        if (numero) patch.numero_lote = numero;
-        if (fecha)  patch.fecha_vencimiento = fecha;
-        if (stock !== '') patch.cantidad_disponible = parseInt(stock, 10);
-        if (Object.keys(patch).length) {
-          await apiFetch(`/api/lotes/${loteId}/`, { method: 'PATCH', body: JSON.stringify(patch) });
-        }
-      } else if (numero && fecha && inicial) {
-        const cantidadInicial = parseInt(inicial, 10);
-        const cantidadStock   = stock !== '' ? parseInt(stock, 10) : cantidadInicial;
-        await apiFetch('/api/lotes/', {
-          method: 'POST',
-          body: JSON.stringify({
-            medicamento: medId,
-            numero_lote: numero,
-            fecha_vencimiento: fecha,
-            cantidad_inicial: cantidadInicial,
-            cantidad_disponible: cantidadStock,
-          }),
-        });
-      }
+      await apiFetch('/api/lotes/', {
+        method: 'POST',
+        body: JSON.stringify({
+          medicamento: medId,
+          numero_lote: numero,
+          fecha_vencimiento: fecha,
+          cantidad_inicial: cantidadInicial,
+          cantidad_disponible: cantidadStock,
+        }),
+      });
     } catch (e) {
       console.error(e);
-      showAlert('Medicamento guardado, pero hubo un error guardando el lote (stock/vencimiento).', 'warning');
+      showAlert('Medicamento creado, pero hubo un error creando el lote inicial.', 'warning');
     }
 
     bootstrap.Modal.getInstance(document.getElementById('modalMed')).hide();
-    showAlert(editandoId ? 'Medicamento actualizado.' : 'Medicamento creado.');
+    showAlert('Medicamento creado.');
     cargar();
   } else {
     const msg = Object.entries(data).map(([k,v]) => `${k}: ${v}`).join(' | ');
@@ -244,11 +289,36 @@ async function guardar() {
   }
 }
 
+async function showApiError(res, fallback) {
+  let msg = fallback;
+  try {
+    const data = await res.clone().json();
+    msg = data.detail ?? Object.entries(data).map(([k, v]) => `${k}: ${v}`).join(' | ') ?? msg;
+  } catch (e) {}
+  if (msg === fallback) {
+    try {
+      const text = (await res.clone().text()).trim();
+      if (text) msg = text;
+    } catch (e) {}
+  }
+  showAlert(msg, 'danger');
+}
+
+async function inactivar(id) {
+  if (!confirm('¿Inactivar este medicamento?')) return;
+  const res = await apiFetch(`/api/medicamentos/${id}/`, {
+    method: 'PATCH',
+    body: JSON.stringify({ activo: false }),
+  });
+  if (res.ok) { showAlert('Medicamento inactivado.'); cargar(); }
+  else await showApiError(res, 'No se pudo inactivar.');
+}
+
 async function eliminar(id) {
   if (!confirm('¿Eliminar este medicamento?')) return;
   const res = await apiFetch(`/api/medicamentos/${id}/`, { method: 'DELETE' });
   if (res.ok) { showAlert('Medicamento eliminado.'); cargar(); }
-  else showAlert('No se pudo eliminar.', 'danger');
+  else await showApiError(res, 'No se pudo eliminar.');
 }
 
 document.addEventListener('DOMContentLoaded', cargar);

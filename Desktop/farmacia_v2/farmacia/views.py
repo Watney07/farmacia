@@ -4,6 +4,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny, IsAdminUser
 from rest_framework.authtoken.models import Token
 from django.contrib.auth import authenticate
+from django.db.models.deletion import ProtectedError
 from django.utils import timezone
 from datetime import timedelta
 
@@ -48,6 +49,22 @@ class MedicamentoViewSet(viewsets.ModelViewSet):
         if activo is not None:
             qs = qs.filter(activo=activo.lower() == 'true')
         return qs
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        try:
+            self.perform_destroy(instance)
+        except ProtectedError:
+            return Response(
+                {
+                    "detail": (
+                        "No se puede eliminar este medicamento porque tiene ventas asociadas. "
+                        "Sugerencia: márcalo como inactivo."
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     # CAMBIO: alertas también requiere autenticación para que, sin token,
     # el sistema no exponga información en el dashboard.

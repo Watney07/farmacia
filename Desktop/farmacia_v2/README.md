@@ -163,6 +163,9 @@ Abre [http://127.0.0.1:8000](http://127.0.0.1:8000)
 | DELETE | `/api/medicamentos/{id}/` | Token |
 | GET    | `/api/medicamentos/alertas/` | No — **Regla de negocio** |
 
+Notas:
+- En creación (`POST /api/medicamentos/`), `descripcion` es obligatoria.
+
 ### Lotes y Ventas
 
 | Método | URL |
@@ -207,6 +210,6 @@ Al `POST /api/ventas/`, el sistema automáticamente:
 |-----|-------|
 | `/` | Dashboard con contadores |
 | `/login/` | Login y registro |
-| `/medicamentos/` | CRUD visual de medicamentos |
+| `/medicamentos/` | Crear, revisar e inactivar medicamentos (sin edición) |
 | `/ventas/` | Registrar y consultar ventas |
 | `/alertas/` | Panel de alertas |
