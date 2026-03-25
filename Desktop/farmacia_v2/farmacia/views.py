@@ -183,10 +183,10 @@ class RegistroView(generics.CreateAPIView):
     Crea un usuario y devuelve su token de autenticación.
 
     CreateAPIView → vista genérica que solo maneja POST para crear.
-    permission_classes = [AllowAny] → cualquiera puede registrarse.
+    permission_classes = [IsAdminUser] → solo admins pueden crear cuentas (no hay registro público).
     """
     serializer_class   = RegistroSerializer
-    permission_classes = [AllowAny]
+    permission_classes = [IsAdminUser]
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)

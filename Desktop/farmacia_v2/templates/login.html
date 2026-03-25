@@ -20,31 +20,9 @@
                  onkeydown="if(event.key==='Enter') hacerLogin()">
         </div>
         <button class="btn btn-success w-100" onclick="hacerLogin()">Entrar</button>
-      </div>
-    </div>
-
-    <div class="card shadow-sm">
-      <div class="card-header bg-secondary text-white fw-bold">
-        <i class="bi bi-person-plus me-2"></i>Crear cuenta
-      </div>
-      <div class="card-body">
-        <div class="mb-3">
-          <label class="form-label">Usuario</label>
-          <input type="text" class="form-control" id="reg-username" placeholder="usuario">
+        <div class="form-text mt-2">
+          Por seguridad, las cuentas se crean únicamente desde la terminal (administración).
         </div>
-        <div class="mb-3">
-          <label class="form-label">Email</label>
-          <input type="email" class="form-control" id="reg-email" placeholder="correo@ejemplo.com">
-        </div>
-        <div class="mb-3">
-          <label class="form-label">Contraseña</label>
-          <input type="password" class="form-control" id="reg-password" placeholder="mínimo 8 caracteres">
-        </div>
-        <div class="mb-3">
-          <label class="form-label">Confirmar contraseña</label>
-          <input type="password" class="form-control" id="reg-password2" placeholder="repite la contraseña">
-        </div>
-        <button class="btn btn-secondary w-100" onclick="hacerRegistro()">Registrarse</button>
       </div>
     </div>
 
@@ -73,32 +51,6 @@ async function hacerLogin() {
     setTimeout(() => window.location.href = '/', 1000);
   } else {
     showAlert(data.error || 'Credenciales incorrectas.', 'danger');
-  }
-}
-
-async function hacerRegistro() {
-  const username  = document.getElementById('reg-username').value.trim();
-  const email     = document.getElementById('reg-email').value.trim();
-  const password  = document.getElementById('reg-password').value;
-  const password2 = document.getElementById('reg-password2').value;
-
-  if (!username || !password) return showAlert('Usuario y contraseña son obligatorios.', 'warning');
-
-  const res  = await fetch('/api/auth/registro/', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username, email, password, password2 })
-  });
-  const data = await res.json();
-
-  if (res.ok) {
-    localStorage.setItem('token',    data.token);
-    localStorage.setItem('username', data.username);
-    showAlert('Cuenta creada. Redirigiendo...');
-    setTimeout(() => window.location.href = '/', 1000);
-  } else {
-    const msg = Object.entries(data).map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(' ') : v}`).join(' | ');
-    showAlert(msg, 'danger');
   }
 }
 </script>

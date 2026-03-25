@@ -146,10 +146,17 @@ Abre [http://127.0.0.1:8000](http://127.0.0.1:8000)
 
 | Método | URL | Descripción |
 |--------|-----|-------------|
-| POST | `/api/auth/registro/` | Crear cuenta |
 | POST | `/api/auth/login/` | Iniciar sesión → devuelve token |
 | POST | `/api/auth/logout/` | Cerrar sesión (requiere token) |
 | GET  | `/api/auth/perfil/` | Datos del usuario (requiere token) |
+
+> Por seguridad, no existe registro público desde la web. Los usuarios se crean desde la terminal.
+
+#### Crear usuarios desde la terminal
+- Crear un admin: `./venv/Scripts/python.exe manage.py createsuperuser`
+- Crear usuario normal (ejemplo):
+  - `./venv/Scripts/python.exe manage.py shell`
+  - En la consola: `from django.contrib.auth.models import User; User.objects.create_user('usuario', password='clave-segura')`
 
 ### Medicamentos
 

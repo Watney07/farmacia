@@ -34,7 +34,6 @@ urlpatterns = [
     path('api/', include(router.urls)),
 
     # Endpoints de autenticación:
-    # POST /api/auth/registro/  → crear cuenta
     # POST /api/auth/login/     → obtener token
     # POST /api/auth/logout/    → invalidar token
     # GET  /api/auth/perfil/    → datos del usuario actual
